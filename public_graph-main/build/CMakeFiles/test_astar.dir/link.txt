@@ -1,0 +1,1 @@
+/usr/bin/c++ -std=c++0x  -rdynamic CMakeFiles/test_astar.dir/test/test_astar.cpp.o -o test_astar  -Wl,-rpath,/mnt/d/git_repo/Multi-Agent-Path-Finding/public_graph-main/build libcppraplab.so 
