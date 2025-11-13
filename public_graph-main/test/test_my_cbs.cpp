@@ -5,15 +5,16 @@
 
 int TestCBSBasic();
 int TestCBSWithObstacles();
+int TestCBSWithObstacles2();
 int TestCBSMultipleAgents();
 int TestCBSOnGrid();
 
 int main()
 {
   // TestCBSBasic();
-  // TestCBSWithObstacles();
+  TestCBSWithObstacles2();
   // TestCBSMultipleAgents();
-  TestCBSOnGrid();
+  // TestCBSOnGrid();
 
   return 0;
 };
@@ -147,6 +148,78 @@ int TestCBSWithObstacles()
   std::vector<long> goals = {24, 20}; // (4,4) and (4,0)
 
   int result = cbs.Solve(starts, goals, 10.0, 1.0);
+
+  if (result == 0)
+  {
+    std::cout << "CBS found solution with obstacles!" << std::endl;
+    auto plan = cbs.GetPlan();
+    auto cost = cbs.GetPlanCost();
+    auto stats = cbs.GetStats();
+
+    std::cout << "Plan cost: " << cost[0] << std::endl;
+    std::cout << "Nodes expanded: " << stats["nodes_expanded"] << std::endl;
+    std::cout << "Runtime: " << stats["runtime"] << " seconds" << std::endl;
+
+    for (int i = 0; i < plan.size(); i++)
+    {
+      std::cout << "Agent " << i << " path length: " << plan[i].size() << std::endl;
+      std::cout << "Agent " << i << " path: ";
+      for (auto v : plan[i])
+        std::cout << v << " ";
+      std::cout << std::endl;
+    }
+  }
+  else
+  {
+    std::cout << "CBS failed to find solution with obstacles. Error code: " << result << std::endl;
+  }
+
+  timer.PrintDuration();
+  std::cout << "####### TestCBSWithObstacles() End #######" << std::endl;
+
+  return 1;
+};
+
+int TestCBSWithObstacles2()
+{
+  std::cout << "####### TestCBSWithObstacles() Begin #######" << std::endl;
+  raplab::SimpleTimer timer;
+  timer.Start();
+
+  // 修改点1: 使用 StateSpaceST 替代 Grid2d
+  raplab::StateSpaceST g;
+  std::vector<std::vector<double>> occupancy_grid;
+  int grid_size = 4;
+
+  occupancy_grid.resize(grid_size);
+  for (int i = 0; i < grid_size; i++)
+  {
+    occupancy_grid[i].resize(grid_size, 0);
+  }
+
+  // Add some obstacles
+  occupancy_grid[0][1] = 1;
+  occupancy_grid[0][2] = 1;
+
+  occupancy_grid[1][1] = 1;
+  //occupancy_grid[1][2] = 1;
+
+  occupancy_grid[2][1] = 1;
+  occupancy_grid[2][2] = 1;
+
+
+  g.SetOccuGridPtr(&occupancy_grid);
+
+  // Test CBS with 2 agents
+  raplab::CBS cbs;
+  cbs.SetGraphPtr(&g);
+
+  // Agent 0: top-left to bottom-right
+  // Agent 1: top-right to bottom-left
+  std::vector<long> starts = {0, 3};  // (0,0) and (0,4)
+  std::vector<long> goals = {3, 0}; // (4,4) and (4,0)
+
+  int result = cbs.Solve(starts, goals, 30.0, 1.0);
 
   if (result == 0)
   {

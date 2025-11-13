@@ -20,11 +20,17 @@ namespace raplab
     {
         int agent1;
         int agent2;
-        long vertex; // conflict vertex
-        long time;   // conflict time
+        long vertex; // 冲突顶点（对于顶点冲突）或第一个顶点（对于边冲突）
+        long vertex2; // 对于边冲突的第二个顶点，-1表示顶点冲突
+        long time;   // 冲突时间
+        bool is_edge_conflict; // 标记是顶点冲突还是边冲突
 
         Conflict(int a1 = -1, int a2 = -1, long v = -1, long t = -1)
-            : agent1(a1), agent2(a2), vertex(v), time(t) {}
+            : agent1(a1), agent2(a2), vertex(v), vertex2(-1), time(t), is_edge_conflict(false) {}
+        
+        // 新的构造函数用于边冲突
+        Conflict(int a1, int a2, long v1, long v2, long t)
+            : agent1(a1), agent2(a2), vertex(v1), vertex2(v2), time(t), is_edge_conflict(true) {}
     };
 
     /**
@@ -34,10 +40,16 @@ namespace raplab
     {
         int agent;
         long vertex;
+        long vertex2; // 对于边约束的第二个顶点，-1表示顶点约束
         long time;
+        bool is_edge_constraint; // 标记是顶点约束还是边约束
 
         Constraint(int a = -1, long v = -1, long t = -1)
-            : agent(a), vertex(v), time(t) {}
+            : agent(a), vertex(v), vertex2(-1), time(t), is_edge_constraint(false) {}
+        
+        // 新的构造函数用于边约束
+        Constraint(int a, long v1, long v2, long t)
+            : agent(a), vertex(v1), vertex2(v2), time(t), is_edge_constraint(true) {}
     };
 
     /**

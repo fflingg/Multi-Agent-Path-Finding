@@ -3,6 +3,8 @@
 #include <limits>
 #include <algorithm>
 #include <iostream>
+#include <map>
+#include <tuple>
 
 namespace raplab
 {
@@ -84,9 +86,15 @@ namespace raplab
                 return 0; // Success
             }
 
-            std::cout << "CBS: Conflict found between agents " << conflict.agent1
-                      << " and " << conflict.agent2 << " at vertex " << conflict.vertex
-                      << " time " << conflict.time << std::endl;
+            if (conflict.is_edge_conflict) {
+                std::cout << "CBS: EDGE Conflict found between agents " << conflict.agent1
+                          << " and " << conflict.agent2 << " at edge (" << conflict.vertex 
+                          << "," << conflict.vertex2 << ") time " << conflict.time << std::endl;
+            } else {
+                std::cout << "CBS: VERTEX Conflict found between agents " << conflict.agent1
+                          << " and " << conflict.agent2 << " at vertex " << conflict.vertex
+                          << " time " << conflict.time << std::endl;
+            }
 
             // Generate child nodes
             auto children = generateChildNodes(current, conflict);
@@ -136,7 +144,11 @@ namespace raplab
             }
             else
             {
-                std::cout << "CBS: Agent " << i << " path length: " << node->solution[i].size() << std::endl;
+                std::cout << "CBS: Agent " << i << " path: ";
+                for (auto v : node->solution[i]) {
+                    std::cout << v << " ";
+                }
+                std::cout << " (length: " << node->solution[i].size() << ")" << std::endl;
             }
         }
 
@@ -202,6 +214,8 @@ namespace raplab
 
                 if (vertex_occupation.find(vertex) != vertex_occupation.end())
                 {
+                    std::cout << "CBS: Vertex conflict at t=" << t << ", v=" << vertex 
+                              << " between agents " << vertex_occupation[vertex] << " and " << i << std::endl;
                     conflict = Conflict(vertex_occupation[vertex], i, vertex, t);
                     return true;
                 }
@@ -228,20 +242,23 @@ namespace raplab
 
                     if (vi1 == vj2 && vi2 == vj1 && vi1 != -1 && vi2 != -1 && vj1 != -1 && vj2 != -1)
                     {
-                        conflict = Conflict(i, j, vi1, t);
+                        std::cout << "CBS: Edge conflict at t=" << t 
+                                  << " between agents " << i << " and " << j 
+                                  << " on edge (" << vi1 << "," << vi2 << ")" << std::endl;
+                        conflict = Conflict(i, j, vi1, vi2, t);
                         return true;
                     }
                 }
             }
         }
 
+        std::cout << "CBS: No conflicts found in solution!" << std::endl;
         return false;
     }
 
     std::vector<std::shared_ptr<CBSNode>> CBS::generateChildNodes(
         std::shared_ptr<CBSNode> parent, const Conflict &conflict)
     {
-
         std::vector<std::shared_ptr<CBSNode>> children;
 
         if (conflict.agent1 < 0 || conflict.agent1 >= parent->solution.size() ||
@@ -251,59 +268,44 @@ namespace raplab
             return children;
         }
 
-        // Create child for agent1
-        auto child1 = std::make_shared<CBSNode>();
-        child1->id = node_counter_++;
-        child1->constraints = parent->constraints;
-        child1->solution = parent->solution;
+        // 简化策略：对于边冲突总是使用边约束，对于顶点冲突使用顶点约束
+        for (int i = 0; i < 2; i++) {
+            int agent = (i == 0) ? conflict.agent1 : conflict.agent2;
+            
+            auto child = std::make_shared<CBSNode>();
+            child->id = node_counter_++;
+            child->constraints = parent->constraints;
+            child->solution = parent->solution; // 关键：复制所有路径
 
-        // Add constraint for agent1
-        if (conflict.agent1 < child1->constraints.size())
-        {
-            child1->constraints[conflict.agent1].push_back(
-                Constraint(conflict.agent1, conflict.vertex, conflict.time));
-
-            std::cout << "CBS: Replanning for agent " << conflict.agent1 << " with new constraint" << std::endl;
-            child1->solution[conflict.agent1] = findPathForAgent(
-                conflict.agent1, child1->constraints[conflict.agent1], time_limit_ / 10.0);
-
-            if (!child1->solution[conflict.agent1].empty())
-            {
-                child1->cost = calculateSIC(child1->solution);
-                children.push_back(child1);
-                std::cout << "CBS: Child1 created with cost " << child1->cost << std::endl;
+            if (conflict.is_edge_conflict) {
+                // 边冲突：添加边约束
+                long v1 = (i == 0) ? conflict.vertex : conflict.vertex2;
+                long v2 = (i == 0) ? conflict.vertex2 : conflict.vertex;
+                child->constraints[agent].push_back(Constraint(agent, v1, v2, conflict.time));
+                std::cout << "CBS: Edge constraint for agent " << agent << " at (" << v1 << "," << v2 << ") t=" << conflict.time << std::endl;
+            } else {
+                // 顶点冲突：添加顶点约束
+                child->constraints[agent].push_back(Constraint(agent, conflict.vertex, conflict.time));
+                std::cout << "CBS: Vertex constraint for agent " << agent << " at " << conflict.vertex << " t=" << conflict.time << std::endl;
             }
-            else
-            {
-                std::cout << "CBS: Child1 replanning failed" << std::endl;
-            }
-        }
 
-        // Create child for agent2
-        auto child2 = std::make_shared<CBSNode>();
-        child2->id = node_counter_++;
-        child2->constraints = parent->constraints;
-        child2->solution = parent->solution;
+            // 只重新规划冲突agent的路径
+            std::cout << "CBS: Replanning for agent " << agent << " with new constraint" << std::endl;
+            child->solution[agent] = findPathForAgent(agent, child->constraints[agent], time_limit_ / 10.0);
 
-        // Add constraint for agent2
-        if (conflict.agent2 < child2->constraints.size())
-        {
-            child2->constraints[conflict.agent2].push_back(
-                Constraint(conflict.agent2, conflict.vertex, conflict.time));
-
-            std::cout << "CBS: Replanning for agent " << conflict.agent2 << " with new constraint" << std::endl;
-            child2->solution[conflict.agent2] = findPathForAgent(
-                conflict.agent2, child2->constraints[conflict.agent2], time_limit_ / 10.0);
-
-            if (!child2->solution[conflict.agent2].empty())
-            {
-                child2->cost = calculateSIC(child2->solution);
-                children.push_back(child2);
-                std::cout << "CBS: Child2 created with cost " << child2->cost << std::endl;
-            }
-            else
-            {
-                std::cout << "CBS: Child2 replanning failed" << std::endl;
+            if (!child->solution[agent].empty()) {
+                child->cost = calculateSIC(child->solution);
+                children.push_back(child);
+                std::cout << "CBS: Child node " << child->id << " created with cost " << child->cost << std::endl;
+                
+                // 输出新路径详情
+                std::cout << "CBS: Agent " << agent << " new path: ";
+                for (auto v : child->solution[agent]) {
+                    std::cout << v << " ";
+                }
+                std::cout << " (length: " << child->solution[agent].size() << ")" << std::endl;
+            } else {
+                std::cout << "CBS: Replanning failed for agent " << agent << std::endl;
             }
         }
 
@@ -347,14 +349,22 @@ namespace raplab
             raplab::AstarSTGrid2d low_level_planner;
             low_level_planner.SetGraphPtr(_graph);
 
-            // 添加约束
+            // 输出约束信息
+            std::cout << "CBS: Agent " << agent << " constraints: ";
             for (const auto &constraint : constraints)
             {
                 if (constraint.agent == agent)
                 {
-                    low_level_planner.AddNodeCstr(constraint.vertex, constraint.time);
+                    if (constraint.is_edge_constraint && constraint.vertex2 != -1) {
+                        std::cout << "Edge(" << constraint.vertex << "," << constraint.vertex2 << ",t=" << constraint.time << ") ";
+                        low_level_planner.AddEdgeCstr(constraint.vertex, constraint.vertex2, constraint.time);
+                    } else {
+                        std::cout << "Vertex(" << constraint.vertex << ",t=" << constraint.time << ") ";
+                        low_level_planner.AddNodeCstr(constraint.vertex, constraint.time);
+                    }
                 }
             }
+            std::cout << std::endl;
 
             // 寻找路径
             auto path = low_level_planner.PathFinding(starts_[agent], goals_[agent], time_limit, 0);
@@ -387,7 +397,32 @@ namespace raplab
 
     bool CBS::validateSolution(std::shared_ptr<CBSNode> node, Conflict &conflict)
     {
-        return !findFirstConflict(node, conflict);
+        if (!findFirstConflict(node, conflict)) {
+            std::cout << "CBS: ✅ Valid solution found with cost " << node->cost << std::endl;
+            // 输出最终路径详情
+            for (int i = 0; i < node->solution.size(); i++) {
+                std::cout << "Agent " << i << " final path: ";
+                for (auto v : node->solution[i]) {
+                    std::cout << v << " ";
+                }
+                std::cout << " (length: " << node->solution[i].size() << ")" << std::endl;
+            }
+            return true;
+        }
+        
+        // 输出冲突时的路径状态
+        std::cout << "CBS: Conflict detected at time " << conflict.time << ", current paths:" << std::endl;
+        for (int i = 0; i < node->solution.size(); i++) {
+            std::cout << "Agent " << i << ": ";
+            for (size_t t = 0; t < std::min(node->solution[i].size(), (size_t)(conflict.time + 3)); t++) {
+                if (t < node->solution[i].size()) {
+                    std::cout << "t" << t << "=" << node->solution[i][t] << " ";
+                }
+            }
+            std::cout << std::endl;
+        }
+        
+        return false;
     }
 
     PathSet CBS::GetPlan(long nid)
