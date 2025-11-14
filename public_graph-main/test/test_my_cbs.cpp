@@ -12,9 +12,9 @@ int TestCBSOnGrid();
 int main()
 {
   // TestCBSBasic();
-  TestCBSWithObstacles2();
+  // TestCBSWithObstacles2();
   // TestCBSMultipleAgents();
-  // TestCBSOnGrid();
+  TestCBSOnGrid();
 
   return 0;
 };
@@ -394,7 +394,7 @@ int TestCBSOnGrid()
       std::cout << "Agent " << i << " path length: " << plan[i].size() << std::endl;
       std::cout << "Agent " << i << " path: ";
       for (auto v : plan[i])
-        std::cout << v << " ";
+        std::cout << v << ", ";
       std::cout << std::endl;
     }
   }

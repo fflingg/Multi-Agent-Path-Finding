@@ -89,6 +89,11 @@ private:
     bool validateRectangleSolution(std::shared_ptr<CBSNodeMulti> node, RectangleConflict& conflict);
     bool findFirstRectangleConflict(std::shared_ptr<CBSNodeMulti> node, RectangleConflict& conflict);
     
+    // 障碍物碰撞检测
+    bool isObstacle(long vertex) const;
+    bool checkRectangleObstacleCollision(const std::vector<long>& rect_vertices) const;
+    bool validateRectanglePosition(long base_vertex, const RectangleAgent& agent) const; // 添加这行
+    
     // 重写的高层方法
     std::shared_ptr<CBSNodeMulti> createRootNodeMulti();
     std::vector<std::shared_ptr<CBSNodeMulti>> generateChildNodesMulti(
