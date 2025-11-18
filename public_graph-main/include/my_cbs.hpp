@@ -20,15 +20,16 @@ namespace raplab
     {
         int agent1;
         int agent2;
-        long vertex; // 冲突顶点（对于顶点冲突）或第一个顶点（对于边冲突）
-        long vertex2; // 对于边冲突的第二个顶点，-1表示顶点冲突
-        long time;   // 冲突时间
-        bool is_edge_conflict; // 标记是顶点冲突还是边冲突
+        long vertex;
+        long vertex2; // a second vertex to indicate edge conflict, -1 for node conflict
+        long time;
+        bool is_edge_conflict;
 
+        // node conflict
         Conflict(int a1 = -1, int a2 = -1, long v = -1, long t = -1)
             : agent1(a1), agent2(a2), vertex(v), vertex2(-1), time(t), is_edge_conflict(false) {}
-        
-        // 新的构造函数用于边冲突
+
+        // edge conflict
         Conflict(int a1, int a2, long v1, long v2, long t)
             : agent1(a1), agent2(a2), vertex(v1), vertex2(v2), time(t), is_edge_conflict(true) {}
     };
@@ -40,14 +41,15 @@ namespace raplab
     {
         int agent;
         long vertex;
-        long vertex2; // 对于边约束的第二个顶点，-1表示顶点约束
+        long vertex2; // a second vertex to indicate edge conflict, -1 for node conflict
         long time;
-        bool is_edge_constraint; // 标记是顶点约束还是边约束
+        bool is_edge_constraint;
 
+        // node conflict
         Constraint(int a = -1, long v = -1, long t = -1)
             : agent(a), vertex(v), vertex2(-1), time(t), is_edge_constraint(false) {}
-        
-        // 新的构造函数用于边约束
+
+        // edge conflict
         Constraint(int a, long v1, long v2, long t)
             : agent(a), vertex(v1), vertex2(v2), time(t), is_edge_constraint(true) {}
     };
@@ -68,16 +70,15 @@ namespace raplab
 
         bool operator<(const CBSNode &other) const
         {
-            return cost > other.cost; // for min-heap
+            return cost > other.cost;
         }
     };
 
-    // 比较函数用于优先队列
     struct CBSNodeCompare
     {
         bool operator()(const std::shared_ptr<CBSNode> &a, const std::shared_ptr<CBSNode> &b) const
         {
-            return a->cost > b->cost; // min-heap
+            return a->cost > b->cost; 
         }
     };
 
@@ -96,7 +97,7 @@ namespace raplab
         virtual CostVec GetPlanCost(long nid = -1) override;
         virtual std::unordered_map<std::string, double> GetStats() override;
 
-    protected:  // 将protected放在这里，让派生类可以访问
+    protected:
         // High-level methods
         std::shared_ptr<CBSNode> createRootNode();
         bool findFirstConflict(std::shared_ptr<CBSNode> node, Conflict &conflict);
@@ -114,7 +115,6 @@ namespace raplab
         bool hasConflict(const std::vector<long> &path1, const std::vector<long> &path2,
                          int agent1, int agent2, Conflict &conflict);
 
-        // Member variables - 改为protected
         std::vector<long> starts_;
         std::vector<long> goals_;
         double time_limit_;

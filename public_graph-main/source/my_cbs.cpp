@@ -268,28 +268,24 @@ namespace raplab
             return children;
         }
 
-        // 简化策略：对于边冲突总是使用边约束，对于顶点冲突使用顶点约束
         for (int i = 0; i < 2; i++) {
             int agent = (i == 0) ? conflict.agent1 : conflict.agent2;
             
             auto child = std::make_shared<CBSNode>();
             child->id = node_counter_++;
             child->constraints = parent->constraints;
-            child->solution = parent->solution; // 关键：复制所有路径
+            child->solution = parent->solution; 
 
             if (conflict.is_edge_conflict) {
-                // 边冲突：添加边约束
                 long v1 = (i == 0) ? conflict.vertex : conflict.vertex2;
                 long v2 = (i == 0) ? conflict.vertex2 : conflict.vertex;
                 child->constraints[agent].push_back(Constraint(agent, v1, v2, conflict.time));
                 std::cout << "CBS: Edge constraint for agent " << agent << " at (" << v1 << "," << v2 << ") t=" << conflict.time << std::endl;
             } else {
-                // 顶点冲突：添加顶点约束
                 child->constraints[agent].push_back(Constraint(agent, conflict.vertex, conflict.time));
                 std::cout << "CBS: Vertex constraint for agent " << agent << " at " << conflict.vertex << " t=" << conflict.time << std::endl;
             }
 
-            // 只重新规划冲突agent的路径
             std::cout << "CBS: Replanning for agent " << agent << " with new constraint" << std::endl;
             child->solution[agent] = findPathForAgent(agent, child->constraints[agent], time_limit_ / 10.0);
 
@@ -298,7 +294,6 @@ namespace raplab
                 children.push_back(child);
                 std::cout << "CBS: Child node " << child->id << " created with cost " << child->cost << std::endl;
                 
-                // 输出新路径详情
                 std::cout << "CBS: Agent " << agent << " new path: ";
                 for (auto v : child->solution[agent]) {
                     std::cout << v << " ";
@@ -318,14 +313,12 @@ namespace raplab
     {
         stats_["low_level_calls"] = static_cast<double>(stats_["low_level_calls"]) + 1;
 
-        // 首先检查图指针是否有效
         if (_graph == nullptr)
         {
             std::cout << "CBS: Graph pointer is null!" << std::endl;
             return std::vector<long>();
         }
 
-        // 检查起点和终点是否在图中
         if (!_graph->HasVertex(starts_[agent]) || !_graph->HasVertex(goals_[agent]))
         {
             std::cout << "CBS: Start or goal vertex not in graph! Start: " << starts_[agent]
@@ -333,7 +326,6 @@ namespace raplab
             return std::vector<long>();
         }
 
-        // 如果没有约束，使用普通A*
         if (constraints.empty())
         {
             raplab::Astar astar_planner;
@@ -343,13 +335,11 @@ namespace raplab
             return path;
         }
 
-        // 有约束时使用时空A*
         try
         {
             raplab::AstarSTGrid2d low_level_planner;
             low_level_planner.SetGraphPtr(_graph);
 
-            // 输出约束信息
             std::cout << "CBS: Agent " << agent << " constraints: ";
             for (const auto &constraint : constraints)
             {
@@ -366,7 +356,6 @@ namespace raplab
             }
             std::cout << std::endl;
 
-            // 寻找路径
             auto path = low_level_planner.PathFinding(starts_[agent], goals_[agent], time_limit, 0);
             return path;
         }
@@ -399,7 +388,6 @@ namespace raplab
     {
         if (!findFirstConflict(node, conflict)) {
             std::cout << "CBS: ✅ Valid solution found with cost " << node->cost << std::endl;
-            // 输出最终路径详情
             for (int i = 0; i < node->solution.size(); i++) {
                 std::cout << "Agent " << i << " final path: ";
                 for (auto v : node->solution[i]) {
@@ -410,7 +398,6 @@ namespace raplab
             return true;
         }
         
-        // 输出冲突时的路径状态
         std::cout << "CBS: Conflict detected at time " << conflict.time << ", current paths:" << std::endl;
         for (int i = 0; i < node->solution.size(); i++) {
             std::cout << "Agent " << i << ": ";
