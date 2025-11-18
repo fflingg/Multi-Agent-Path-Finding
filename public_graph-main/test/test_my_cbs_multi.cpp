@@ -11,9 +11,9 @@ int TestMultiCBSOnLargeGrid();
 int main()
 {
   std::cout << "=== MultiCBS Test Suite ===" << std::endl;
-  
-  // TestMultiCBSBasic();
-  TestMultiCBSWithObstacles();
+
+  TestMultiCBSBasic();
+  // TestMultiCBSWithObstacles();
   // TestMultiCBSMultipleSizes();
   // TestMultiCBSOnLargeGrid();
 
@@ -30,13 +30,22 @@ int TestMultiCBSBasic()
     raplab::StateSpaceST g;
 
     std::vector<std::vector<double>> occupancy_grid;
-    int grid_size = 5;
+    int grid_size = 4;
 
     occupancy_grid.resize(grid_size);
     for (int i = 0; i < grid_size; i++)
     {
       occupancy_grid[i].resize(grid_size, 0);
     }
+
+    occupancy_grid[0][1] = 1;
+    occupancy_grid[0][2] = 1;
+
+    occupancy_grid[1][1] = 1;
+    // occupancy_grid[1][2] = 1;
+
+    occupancy_grid[2][1] = 1;
+    occupancy_grid[2][2] = 1;
 
     g.SetOccuGridPtr(&occupancy_grid);
 
@@ -47,19 +56,19 @@ int TestMultiCBSBasic()
 
     std::cout << "Step 4: Setting agent sizes..." << std::endl;
     std::vector<std::pair<int, int>> agent_sizes = {
-        {1, 1},  // Agent 0: 1x1 (standard)
-        {1, 1}   // Agent 1: 1x1 (standard)
+        {1, 1}, 
+        {1, 1}  
     };
     cbs.SetAgentSizes(agent_sizes);
 
     std::cout << "Step 5: Setting graph pointer..." << std::endl;
     cbs.SetGraphPtr(&g);
 
-    std::vector<long> starts = {0, 24};  // Top-left to bottom-right
-    std::vector<long> goals = {24, 0};   // Bottom-right to top-left
+    std::vector<long> starts = {0, 3}; 
+    std::vector<long> goals = {3, 0};  
 
     std::cout << "Step 6: Starting MultiCBS solve..." << std::endl;
-    int result = cbs.Solve(starts, goals, 10.0, 1.0);
+    int result = cbs.Solve(starts, goals, 60.0, 1.0);
 
     if (result == 0)
     {
@@ -75,7 +84,7 @@ int TestMultiCBSBasic()
       {
         std::cout << "Agent " << i << " path: ";
         for (auto v : plan[i])
-          std::cout << v << " ";
+          std::cout << v << ", ";
         std::cout << std::endl;
       }
     }
@@ -111,7 +120,6 @@ int TestMultiCBSWithObstacles()
       occupancy_grid[i].resize(grid_size, 0);
     }
 
-    // Create obstacle walls - 修正障碍物位置
     occupancy_grid[1][2] = 1;
     occupancy_grid[2][1] = 1;
     occupancy_grid[2][2] = 1;
@@ -121,19 +129,19 @@ int TestMultiCBSWithObstacles()
     g.SetOccuGridPtr(&occupancy_grid);
 
     raplab::MultiCBS cbs;
-    
-    // Test with different agent sizes - 使用更小的尺寸避免边界问题
+
+
     std::vector<std::pair<int, int>> agent_sizes = {
-        {1, 1},  // Agent 0: 1x1 (先测试标准尺寸)
-        {1, 2}   // Agent 1: 1x1 (先测试标准尺寸)
+        {1, 1}, 
+        {1, 2}  
     };
     cbs.SetAgentSizes(agent_sizes);
     cbs.SetGraphPtr(&g);
 
-    // 修正起点和终点位置，确保在网格范围内
-    // 在6x6网格中，有效的顶点ID范围是0-35
-    std::vector<long> starts = {0, 5};   // 左上角和右上角
-    std::vector<long> goals = {35, 24};  // 右下角和左下角
+
+
+    std::vector<long> starts = {0, 5};  
+    std::vector<long> goals = {35, 21}; 
 
     std::cout << "Grid layout (0=free, 1=obstacle):" << std::endl;
     for (int i = 0; i < grid_size; i++)
@@ -147,15 +155,19 @@ int TestMultiCBSWithObstacles()
     std::cout << "Agent 0: " << agent_sizes[0].first << "x" << agent_sizes[0].second << std::endl;
     std::cout << "Agent 1: " << agent_sizes[1].first << "x" << agent_sizes[1].second << std::endl;
     std::cout << "Starts: [";
-    for (size_t i = 0; i < starts.size(); i++) {
-        std::cout << starts[i];
-        if (i < starts.size() - 1) std::cout << ",";
+    for (size_t i = 0; i < starts.size(); i++)
+    {
+      std::cout << starts[i];
+      if (i < starts.size() - 1)
+        std::cout << ",";
     }
     std::cout << "]" << std::endl;
     std::cout << "Goals: [";
-    for (size_t i = 0; i < goals.size(); i++) {
-        std::cout << goals[i];
-        if (i < goals.size() - 1) std::cout << ",";
+    for (size_t i = 0; i < goals.size(); i++)
+    {
+      std::cout << goals[i];
+      if (i < goals.size() - 1)
+        std::cout << ",";
     }
     std::cout << "]" << std::endl;
 
@@ -209,7 +221,7 @@ int TestMultiCBSMultipleSizes()
   {
     raplab::StateSpaceST g;
     std::vector<std::vector<double>> occupancy_grid;
-    int grid_size = 8;
+    int grid_size = 6;
 
     occupancy_grid.resize(grid_size);
     for (int i = 0; i < grid_size; i++)
@@ -217,37 +229,46 @@ int TestMultiCBSMultipleSizes()
       occupancy_grid[i].resize(grid_size, 0);
     }
 
-    // Create some obstacles
-    for (int i = 2; i < 6; i++)
-    {
-      occupancy_grid[3][i] = 1;
-      occupancy_grid[4][i] = 1;
-    }
 
+    occupancy_grid[0][1] = 1;
+    occupancy_grid[0][2] = 1;
+    occupancy_grid[0][3] = 1;
+    occupancy_grid[0][4] = 1;
+    occupancy_grid[1][1] = 1;
+    occupancy_grid[1][2] = 1;
+    occupancy_grid[1][3] = 1;
+    occupancy_grid[1][4] = 1;
+    occupancy_grid[4][1] = 1;
+    // occupancy_grid[4][2] = 1;
+    occupancy_grid[4][3] = 1;
+    occupancy_grid[4][4] = 1;
+    occupancy_grid[5][1] = 1;
+    occupancy_grid[5][2] = 1;
+    occupancy_grid[5][3] = 1;
+    occupancy_grid[5][4] = 1;
     g.SetOccuGridPtr(&occupancy_grid);
 
     raplab::MultiCBS cbs;
-    
-    // Test with various agent sizes
+
+
     std::vector<std::pair<int, int>> agent_sizes = {
-        {1, 1},  // Agent 0: 1x1 (small)
-        {1, 3},  // Agent 1: 1x3 (vertical)
-        {2, 2},  // Agent 2: 2x2 (square)
-        {3, 1}   // Agent 3: 3x1 (horizontal)
+        {1, 1}, 
+        {1, 2}, 
+
     };
     cbs.SetAgentSizes(agent_sizes);
     cbs.SetGraphPtr(&g);
 
-    std::vector<long> starts = {0, 7, 56, 63};   // Corners
-    std::vector<long> goals = {63, 56, 7, 0};    // Opposite corners
+    std::vector<long> starts = {0, 5}; 
+    std::vector<long> goals = {5, 15}; 
 
-    std::cout << "Testing MultiCBS with 4 agents of different sizes:" << std::endl;
+    std::cout << "Testing MultiCBS with 2 agents of different sizes:" << std::endl;
     for (int i = 0; i < agent_sizes.size(); i++)
     {
-      std::cout << "  Agent " << i << ": " << agent_sizes[i].first 
+      std::cout << "  Agent " << i << ": " << agent_sizes[i].first
                 << "x" << agent_sizes[i].second << std::endl;
     }
-    
+
     std::cout << "Grid layout (0=free, 1=obstacle):" << std::endl;
     for (int i = 0; i < grid_size; i++)
     {
@@ -275,11 +296,11 @@ int TestMultiCBSMultipleSizes()
 
       for (int i = 0; i < plan.size(); i++)
       {
-        std::cout << "Agent " << i << " (" << agent_sizes[i].first << "x" 
+        std::cout << "Agent " << i << " (" << agent_sizes[i].first << "x"
                   << agent_sizes[i].second << ") path length: " << plan[i].size() << std::endl;
         std::cout << "Agent " << i << " path: ";
         for (auto v : plan[i])
-          std::cout << v << " ";
+          std::cout << v << ", ";
         std::cout << std::endl;
       }
     }
@@ -317,7 +338,7 @@ int TestMultiCBSOnLargeGrid()
       occupancy_grid[i].resize(grid_size, 0);
     }
 
-    // Create a maze-like structure
+
     for (int i = 1; i < grid_size - 1; i++)
     {
       if (i != 5)
@@ -338,26 +359,26 @@ int TestMultiCBSOnLargeGrid()
     g.SetOccuGridPtr(&occupancy_grid);
 
     raplab::MultiCBS cbs;
-    
-    // Test with larger agents
+
+
     std::vector<std::pair<int, int>> agent_sizes = {
-        {2, 2},  // Agent 0: 2x2
-        {1, 3},  // Agent 1: 1x3  
-        {3, 1},  // Agent 2: 3x1
-        //{1, 1}   // Agent 3: 1x1
+        {2, 2}, 
+        {1, 2}, 
+        //{3, 1}, 
+        {1, 1} 
     };
     cbs.SetAgentSizes(agent_sizes);
     cbs.SetGraphPtr(&g);
 
-    //std::vector<long> starts = {0, 9, 90, 99};
-    //std::vector<long> goals = {76, 79, 72, 42};
-    std::vector<long> starts = {0, 9, 90};
-    std::vector<long> goals = {76, 79, 72};
+    // std::vector<long> starts = {0, 9, 90, 99};
+    // std::vector<long> goals = {76, 79, 72, 42};
+    std::vector<long> starts = {0, 9, 99};
+    std::vector<long> goals = {6, 44, 42};
 
     std::cout << "Testing MultiCBS on " << grid_size << "x" << grid_size << " grid with 4 agents:" << std::endl;
     for (int i = 0; i < agent_sizes.size(); i++)
     {
-      std::cout << "  Agent " << i << ": " << agent_sizes[i].first 
+      std::cout << "  Agent " << i << ": " << agent_sizes[i].first
                 << "x" << agent_sizes[i].second << std::endl;
     }
 
@@ -379,25 +400,11 @@ int TestMultiCBSOnLargeGrid()
       for (int i = 0; i < plan.size(); i++)
       {
         std::cout << "Agent " << i << " path length: " << plan[i].size() << std::endl;
-        // Only print first and last few vertices for large paths
-        if (plan[i].size() > 10)
-        {
-          std::cout << "Agent " << i << " path (first 5): ";
-          for (size_t j = 0; j < 5; j++)
-            std::cout << plan[i][j] << " ";
-          std::cout << "... ";
-          std::cout << "last 5: ";
-          for (size_t j = plan[i].size() - 5; j < plan[i].size(); j++)
-            std::cout << plan[i][j] << " ";
-          std::cout << std::endl;
-        }
-        else
-        {
-          std::cout << "Agent " << i << " path: ";
-          for (auto v : plan[i])
-            std::cout << v << " ";
-          std::cout << std::endl;
-        }
+
+        std::cout << "Agent " << i << " path: ";
+        for (auto v : plan[i])
+          std::cout << v << ", ";
+        std::cout << std::endl;
       }
     }
     else

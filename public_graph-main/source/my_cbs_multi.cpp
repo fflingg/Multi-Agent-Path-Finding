@@ -140,7 +140,7 @@ namespace raplab
                 stats_["nodes_generated"] = static_cast<double>(stats_["nodes_generated"]) + 1;
             }
 
-            if (stats_["nodes_expanded"] > 1000)
+            if (stats_["nodes_expanded"] > 3000)
             {
                 std::cout << "MultiCBS: Node expansion limit reached" << std::endl;
                 break; // Safety limit
@@ -161,6 +161,16 @@ namespace raplab
         // Initialize constraints for each agent
         node->constraints.resize(agents_.size());
 
+        std::cout << "MultiCBS: Creating personalized maps for all agents" << std::endl;
+        for (int i = 0; i < agents_.size(); i++)
+        {
+            auto personalized_map = createPersonalizedMap(i);
+            std::cout << "MultiCBS: Personalized map for agent " << i
+                      << " (size " << agents_[i].width << "x" << agents_[i].height << "):" << std::endl;
+
+            personalized_maps_[i] = personalized_map;
+        }
+
         // Find individual paths for all agents
         node->solution.resize(agents_.size());
         bool all_paths_found = true;
@@ -175,7 +185,6 @@ namespace raplab
             {
                 std::cout << "MultiCBS: Failed to find path for agent " << i << std::endl;
                 all_paths_found = false;
-                // 继续尝试其他agent，让CBS在后续处理中解决冲突
             }
             else
             {
@@ -191,8 +200,6 @@ namespace raplab
         if (!all_paths_found)
         {
             std::cout << "MultiCBS: Some agents failed to find initial paths, but continuing for CBS to resolve conflicts" << std::endl;
-            // 不返回nullptr，让CBS继续处理
-            // 空的路径会在validateSolution中产生冲突
         }
 
         node->cost = calculateSIC(node->solution);
@@ -249,7 +256,7 @@ namespace raplab
             }
         }
 
-        // Check for edge conflicts (swapping conflicts)
+        // Check for edge conflicts (swapping conflicts and moving collisions)
         for (size_t t = 0; t < max_length - 1; t++)
         {
             for (int i = 0; i < node->solution.size(); i++)
@@ -266,13 +273,11 @@ namespace raplab
                     long base_j_from = (t < node->solution[j].size()) ? node->solution[j][t] : node->solution[j].back();
                     long base_j_to = (t + 1 < node->solution[j].size()) ? node->solution[j][t + 1] : node->solution[j].back();
 
-                    // 检查是否发生交换冲突：两个agent在相邻时间步交换位置并发生碰撞
                     if (base_i_to == base_j_from && base_i_from == base_j_to)
                     {
-                        // 检查在交换过程中是否会发生碰撞
                         if (checkCollision(i, base_i_to, j, base_j_from))
                         {
-                            std::cout << "MultiCBS: Edge conflict at t=" << t
+                            std::cout << "MultiCBS: Edge conflict (swap) at t=" << t
                                       << " between agents " << i << " and " << j << std::endl;
                             auto vertices_i_from = getAgentVertices(i, base_i_from);
                             auto vertices_i_to = getAgentVertices(i, base_i_to);
@@ -282,6 +287,27 @@ namespace raplab
                                                      vertices_j_from, vertices_j_to, t);
                             return true;
                         }
+                    }
+
+                    if (checkMovingCollision(i, base_i_from, base_i_to, j, base_j_from, base_j_to, t))
+                    {
+                        std::cout << "MultiCBS: Edge conflict (moving collision) at t=" << t
+                                  << " between agents " << i << " and " << j << std::endl;
+
+                        auto vertices_i_from = getAgentVertices(i, base_i_from);
+                        auto vertices_i_to = getAgentVertices(i, base_i_to);
+                        auto vertices_j_from = getAgentVertices(j, base_j_from);
+                        auto vertices_j_to = getAgentVertices(j, base_j_to);
+
+                        std::vector<long> all_vertices_i, all_vertices_j;
+                        all_vertices_i.insert(all_vertices_i.end(), vertices_i_from.begin(), vertices_i_from.end());
+                        all_vertices_i.insert(all_vertices_i.end(), vertices_i_to.begin(), vertices_i_to.end());
+                        all_vertices_j.insert(all_vertices_j.end(), vertices_j_from.begin(), vertices_j_from.end());
+                        all_vertices_j.insert(all_vertices_j.end(), vertices_j_to.begin(), vertices_j_to.end());
+
+                        conflict = MultiConflict(i, j, all_vertices_i, all_vertices_j, t);
+                        conflict.is_edge_conflict = true;
+                        return true;
                     }
                 }
             }
@@ -296,10 +322,8 @@ namespace raplab
     {
         std::vector<std::shared_ptr<MultiCBSNode>> children;
 
-        // 处理与障碍物的冲突 (agent2 == -1)
         if (conflict.agent2 == -1)
         {
-            // 这是agent与障碍物的冲突，只为该agent生成约束
             auto child = std::make_shared<MultiCBSNode>();
             child->id = node_counter_++;
             child->constraints = parent->constraints;
@@ -328,7 +352,6 @@ namespace raplab
             return children;
         }
 
-        // 原有的agent间冲突处理逻辑
         if (conflict.agent1 < 0 || conflict.agent1 >= parent->solution.size() ||
             conflict.agent2 < 0 || conflict.agent2 >= parent->solution.size())
         {
@@ -390,7 +413,25 @@ namespace raplab
             return std::vector<long>();
         }
 
-        // 检查起点和终点是否有效
+        // raplab::StateSpaceST g;
+        currentGrid.SetOccuGridPtr(&personalized_maps_[agent]);
+        // currentGrid = &g;
+        std::cout << "This is agent " << agent << std::endl;
+        int display_rows = static_cast<int>(personalized_maps_[agent].size());
+        int display_cols = static_cast<int>(personalized_maps_[agent][0].size());
+
+        for (int r = 0; r < display_rows; r++)
+        {
+            std::cout << "  ";
+            for (int c = 0; c < display_cols; c++)
+            {
+                std::cout << (personalized_maps_[agent][r][c] > 0 ? "X " : ". ");
+            }
+            std::cout << std::endl;
+        }
+
+        _graph = &currentGrid;
+
         if (!isValidPosition(agent, agents_[agent].start))
         {
             std::cout << "MultiCBS: Start position invalid for agent " << agent
@@ -410,7 +451,6 @@ namespace raplab
             raplab::AstarSTGrid2d low_level_planner;
             low_level_planner.SetGraphPtr(_graph);
 
-            // 添加多单元格约束到低层规划器
             std::cout << "MultiCBS: Agent " << agent << " constraints: ";
             for (const auto &constraint : constraints)
             {
@@ -423,7 +463,6 @@ namespace raplab
                         {
                             std::cout << vertex << " ";
                             low_level_planner.AddNodeCstr(vertex, constraint.time);
-                            // 对于边约束，通常还需要约束下一个时间步
                             low_level_planner.AddNodeCstr(vertex, constraint.time + 1);
                         }
                         std::cout << "]) ";
@@ -450,15 +489,12 @@ namespace raplab
                 return std::vector<long>();
             }
 
-            // 验证路径的每个位置是否有效
             for (size_t t = 0; t < path.size(); ++t)
             {
                 if (!isValidPosition(agent, path[t]))
                 {
                     std::cout << "MultiCBS: Path position invalid at time " << t
-                              << ", vertex " << path[t]  << std::endl;
-                    // 这里不直接返回失败，而是让高层CBS检测到这个冲突并创建约束
-                    // 路径仍然返回，冲突会在validateSolution中检测到
+                              << ", vertex " << path[t] << std::endl;
                 }
             }
 
@@ -491,37 +527,19 @@ namespace raplab
 
     bool MultiCBS::validateSolution(std::shared_ptr<MultiCBSNode> node, MultiConflict &conflict)
     {
-        // 首先检查是否有agent没有路径
+        std::cout << "validating solution" << std::endl;
         for (int i = 0; i < node->solution.size(); i++)
         {
             if (node->solution[i].empty())
             {
                 std::cout << "MultiCBS: Agent " << i << " has no path" << std::endl;
-                // 这应该被处理为一种冲突
                 conflict = MultiConflict(i, -1, std::vector<long>(), std::vector<long>(), 0);
                 return false;
             }
         }
 
-        // 然后检查agent之间的冲突
         if (!findFirstConflict(node, conflict))
         {
-            // 最后检查agent与障碍物的冲突
-            for (int i = 0; i < node->solution.size(); i++)
-            {
-                for (size_t t = 0; t < node->solution[i].size(); t++)
-                {
-                    if (!isValidPosition(i, node->solution[i][t]))
-                    {
-                        std::cout << "MultiCBS: Agent " << i << " collides with obstacle at time "
-                                  << t << ", vertex " << node->solution[i][t] << std::endl;
-                        auto vertices = getAgentVertices(i, node->solution[i][t]);
-                        conflict = MultiConflict(i, -1, vertices, std::vector<long>(), t);
-                        return false;
-                    }
-                }
-            }
-
             std::cout << "MultiCBS: ✅ Valid solution found with cost " << node->cost << std::endl;
             return true;
         }
@@ -534,23 +552,20 @@ namespace raplab
     {
         std::vector<long> vertices;
 
-        // 获取图的指针并转换为Grid2d类型
         Grid2d *grid_ptr = dynamic_cast<Grid2d *>(_graph);
         if (grid_ptr == nullptr)
         {
             std::cout << "MultiCBS: Graph is not a Grid2d, cannot compute agent vertices" << std::endl;
-            vertices.push_back(base_vertex); // 回退到单单元格
+            vertices.push_back(base_vertex);
             return vertices;
         }
 
-        // 获取基点的坐标
         long base_r = grid_ptr->_k2r(base_vertex);
         long base_c = grid_ptr->_k2c(base_vertex);
 
         int width = agents_[agent].width;
         int height = agents_[agent].height;
 
-        // 假设基点在矩形的左上角，向右和向下扩展
         for (int dr = 0; dr < height; dr++)
         {
             for (int dc = 0; dc < width; dc++)
@@ -558,7 +573,6 @@ namespace raplab
                 long r = base_r + dr;
                 long c = base_c + dc;
 
-                // 检查坐标是否在网格范围内 - 修复边界检查
                 if (r >= 0 && r < grid_ptr->GetOccuGridPtr()->size() &&
                     c >= 0 && c < grid_ptr->GetOccuGridPtr()->at(0).size())
                 {
@@ -567,22 +581,17 @@ namespace raplab
                 }
                 else
                 {
-                    // 如果部分超出边界，返回空向量表示无效位置
-                    std::cout << "MultiCBS: Agent " << agent << " partially outside grid at ("
-                              << r << "," << c << "), grid size: "
-                              << grid_ptr->GetOccuGridPtr()->size() << "x"
-                              << grid_ptr->GetOccuGridPtr()->at(0).size() << std::endl;
-                    return std::vector<long>(); // 返回空向量表示无效
+
+                    return std::vector<long>();
                 }
             }
         }
-
+        // std::cout<<"getAgentVertices end"<<std::endl;
         return vertices;
     }
 
     bool MultiCBS::checkCollision(int agent1, long base1, int agent2, long base2) const
     {
-        // 如果两个agent的基点相同，肯定碰撞
         if (base1 == base2)
         {
             return true;
@@ -591,57 +600,15 @@ namespace raplab
         auto vertices1 = getAgentVertices(agent1, base1);
         auto vertices2 = getAgentVertices(agent2, base2);
 
-        // 如果任一agent的位置无效（如部分超出边界），认为发生碰撞
         if (vertices1.empty() || vertices2.empty())
         {
             return true;
         }
 
-        // 检查是否有共享的顶点
         std::unordered_set<long> vertex_set1(vertices1.begin(), vertices1.end());
         for (long v2 : vertices2)
         {
             if (vertex_set1.find(v2) != vertex_set1.end())
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool MultiCBS::checkObstacleCollision(int agent, long base_vertex) const
-    {
-        auto vertices = getAgentVertices(agent, base_vertex);
-
-        // 如果位置无效（如部分超出边界），认为与障碍物碰撞
-        if (vertices.empty())
-        {
-            return true;
-        }
-
-        Grid2d *grid_ptr = dynamic_cast<Grid2d *>(_graph);
-        if (grid_ptr == nullptr)
-        {
-            std::cout << "MultiCBS: Graph is not a Grid2d, cannot check obstacle collision" << std::endl;
-            return false;
-        }
-
-        auto occu_grid_ptr = grid_ptr->GetOccuGridPtr();
-        if (occu_grid_ptr == nullptr)
-        {
-            std::cout << "MultiCBS: Occupancy grid pointer is null" << std::endl;
-            return false;
-        }
-
-        // 检查所有占据的顶点是否都是障碍物
-        for (long vertex : vertices)
-        {
-            long r = grid_ptr->_k2r(vertex);
-            long c = grid_ptr->_k2c(vertex);
-
-            // 障碍物检查：cell value > 0 表示障碍物
-            if ((*occu_grid_ptr)[r][c] > 0)
             {
                 return true;
             }
@@ -656,8 +623,7 @@ namespace raplab
         {
             return false;
         }
-
-        return !checkObstacleCollision(agent, base_vertex);
+        return true;
     }
 
     PathSet MultiCBS::GetPlan(long nid)
@@ -675,6 +641,173 @@ namespace raplab
         return stats_;
     }
 
-    
+    std::vector<std::vector<double>> MultiCBS::createPersonalizedMap(int agent) const
+    {
+        Grid2d *original_grid = dynamic_cast<Grid2d *>(_graph);
+        if (original_grid == nullptr)
+        {
+            std::cout << "MultiCBS: Cannot create personalized map for non-Grid2d graph" << std::endl;
+            return std::vector<std::vector<double>>();
+        }
 
+        auto original_occu_grid = original_grid->GetOccuGridPtr();
+        if (original_occu_grid == nullptr)
+        {
+            std::cout << "MultiCBS: Original occupancy grid is null" << std::endl;
+            return std::vector<std::vector<double>>();
+        }
+
+        std::vector<std::vector<double>> personalized_map = *original_occu_grid;
+
+        markCollisionAreas(agent, personalized_map);
+
+        return personalized_map;
+    }
+
+    void MultiCBS::markCollisionAreas(int agent, std::vector<std::vector<double>> &personalized_map) const
+    {
+        Grid2d *original_grid = dynamic_cast<Grid2d *>(_graph);
+        if (original_grid == nullptr)
+            return;
+
+        int width = agents_[agent].width;
+        int height = agents_[agent].height;
+        int grid_rows = personalized_map.size();
+        int grid_cols = personalized_map[0].size();
+
+        for (int r = 0; r < grid_rows; r++)
+        {
+            for (int c = 0; c < grid_cols; c++)
+            {
+                long base_vertex = original_grid->_rc2k(r, c);
+
+                if (wouldCollideWithObstacle(agent, base_vertex))
+                {
+                    personalized_map[r][c] = 1.0;
+                }
+            }
+        }
+    }
+
+    bool MultiCBS::wouldCollideWithObstacle(int agent, long base_vertex) const
+    {
+        Grid2d *grid_ptr = dynamic_cast<Grid2d *>(_graph);
+        if (grid_ptr == nullptr)
+            return false;
+
+        auto occu_grid_ptr = grid_ptr->GetOccuGridPtr();
+        if (occu_grid_ptr == nullptr)
+            return false;
+
+        auto vertices = getAgentVertices(agent, base_vertex);
+
+        if (vertices.empty())
+        {
+            return true;
+        }
+
+        for (long vertex : vertices)
+        {
+            long r = grid_ptr->_k2r(vertex);
+            long c = grid_ptr->_k2c(vertex);
+
+            if ((*occu_grid_ptr)[r][c] > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    bool MultiCBS::checkMovingCollision(int agent1, long base1_from, long base1_to,
+                                        int agent2, long base2_from, long base2_to,
+                                        size_t time) const
+    {
+
+        if (base1_from == base1_to && base2_from == base2_to)
+        {
+            return false;
+        }
+
+        if (checkCollision(agent1, base1_from, agent2, base2_to))
+        {
+            std::cout << "MultiCBS: Moving collision - agent1@" << base1_from
+                      << " with agent2@" << base2_to << " at time " << time << std::endl;
+            return true;
+        }
+
+        if (checkCollision(agent1, base1_to, agent2, base2_from))
+        {
+            std::cout << "MultiCBS: Moving collision - agent1@" << base1_to
+                      << " with agent2@" << base2_from << " at time " << time << std::endl;
+            return true;
+        }
+
+        if (checkPathOverlap(agent1, base1_from, base1_to, agent2, base2_from, base2_to))
+        {
+            std::cout << "MultiCBS: Moving collision - path overlap between agents "
+                      << agent1 << " and " << agent2 << " at time " << time << std::endl;
+            return true;
+        }
+
+        return false;
+    }
+
+    bool MultiCBS::checkPathOverlap(int agent1, long base1_from, long base1_to,
+                                    int agent2, long base2_from, long base2_to) const
+    {
+        std::unordered_set<long> agent1_positions;
+        auto vertices1_from = getAgentVertices(agent1, base1_from);
+        auto vertices1_to = getAgentVertices(agent1, base1_to);
+
+        for (long v : vertices1_from)
+            agent1_positions.insert(v);
+        for (long v : vertices1_to)
+            agent1_positions.insert(v);
+
+        if (base1_from == base1_to)
+        {
+            auto vertices2_from = getAgentVertices(agent2, base2_from);
+            auto vertices2_to = getAgentVertices(agent2, base2_to);
+
+            for (long v2 : vertices2_from)
+            {
+                if (agent1_positions.find(v2) != agent1_positions.end())
+                    return true;
+            }
+            for (long v2 : vertices2_to)
+            {
+                if (agent1_positions.find(v2) != agent1_positions.end())
+                    return true;
+            }
+            return false;
+        }
+
+        if (base2_from == base2_to)
+        {
+            auto vertices2 = getAgentVertices(agent2, base2_from);
+            for (long v2 : vertices2)
+            {
+                if (agent1_positions.find(v2) != agent1_positions.end())
+                    return true;
+            }
+            return false;
+        }
+
+        auto vertices2_from = getAgentVertices(agent2, base2_from);
+        auto vertices2_to = getAgentVertices(agent2, base2_to);
+
+        for (long v2 : vertices2_from)
+        {
+            if (agent1_positions.find(v2) != agent1_positions.end())
+                return true;
+        }
+        for (long v2 : vertices2_to)
+        {
+            if (agent1_positions.find(v2) != agent1_positions.end())
+                return true;
+        }
+
+        return false;
+    }
 } // namespace raplab

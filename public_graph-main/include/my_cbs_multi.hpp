@@ -20,10 +20,10 @@ namespace raplab
     {
         long start;
         long goal;
-        int width;   // size in x-direction
-        int height;  // size in y-direction
-        
-        Agent(long s = -1, long g = -1, int w = 1, int h = 1) 
+        int width;  // size in x-direction
+        int height; // size in y-direction
+
+        Agent(long s = -1, long g = -1, int w = 1, int h = 1)
             : start(s), goal(g), width(w), height(h) {}
     };
 
@@ -40,14 +40,14 @@ namespace raplab
         bool is_edge_conflict;
 
         // vertex conflict (overlap at same time)
-        MultiConflict(int a1 = -1, int a2 = -1, const std::vector<long>& v1 = {}, 
-                     const std::vector<long>& v2 = {}, long t = -1)
+        MultiConflict(int a1 = -1, int a2 = -1, const std::vector<long> &v1 = {},
+                      const std::vector<long> &v2 = {}, long t = -1)
             : agent1(a1), agent2(a2), vertices1(v1), vertices2(v2), time(t), is_edge_conflict(false) {}
 
         // edge conflict (swapping conflict)
-        MultiConflict(int a1, int a2, const std::vector<long>& v1_from, const std::vector<long>& v1_to,
-                     const std::vector<long>& v2_from, const std::vector<long>& v2_to, long t)
-            : agent1(a1), agent2(a2), time(t), is_edge_conflict(true) 
+        MultiConflict(int a1, int a2, const std::vector<long> &v1_from, const std::vector<long> &v1_to,
+                      const std::vector<long> &v2_from, const std::vector<long> &v2_to, long t)
+            : agent1(a1), agent2(a2), time(t), is_edge_conflict(true)
         {
             vertices1 = v1_from;
             vertices1.insert(vertices1.end(), v1_to.begin(), v1_to.end());
@@ -67,13 +67,13 @@ namespace raplab
         bool is_edge_constraint;
 
         // vertex constraint
-        MultiConstraint(int a = -1, const std::vector<long>& v = {}, long t = -1)
+        MultiConstraint(int a = -1, const std::vector<long> &v = {}, long t = -1)
             : agent(a), vertices(v), time(t), is_edge_constraint(false) {}
 
         // edge constraint
-        MultiConstraint(int a, const std::vector<long>& from_vertices, 
-                       const std::vector<long>& to_vertices, long t)
-            : agent(a), time(t), is_edge_constraint(true) 
+        MultiConstraint(int a, const std::vector<long> &from_vertices,
+                        const std::vector<long> &to_vertices, long t)
+            : agent(a), time(t), is_edge_constraint(true)
         {
             vertices = from_vertices;
             vertices.insert(vertices.end(), to_vertices.begin(), to_vertices.end());
@@ -104,7 +104,7 @@ namespace raplab
     {
         bool operator()(const std::shared_ptr<MultiCBSNode> &a, const std::shared_ptr<MultiCBSNode> &b) const
         {
-            return a->cost > b->cost; 
+            return a->cost > b->cost;
         }
     };
 
@@ -124,7 +124,7 @@ namespace raplab
         virtual std::unordered_map<std::string, double> GetStats() override;
 
         // Set agent sizes (must be called before Solve)
-        void SetAgentSizes(const std::vector<std::pair<int, int>>& sizes);
+        void SetAgentSizes(const std::vector<std::pair<int, int>> &sizes);
 
     protected:
         // High-level methods
@@ -141,11 +141,11 @@ namespace raplab
         // Helper methods
         double calculateSIC(const std::vector<std::vector<long>> &solution);
         bool validateSolution(std::shared_ptr<MultiCBSNode> node, MultiConflict &conflict);
-        
+
         // Multi-cell specific methods
         std::vector<long> getAgentVertices(int agent, long base_vertex, long time = -1) const;
         bool checkCollision(int agent1, long base1, int agent2, long base2) const;
-        bool checkObstacleCollision(int agent, long base_vertex) const;
+        // bool checkObstacleCollision(int agent, long base_vertex) const;
         bool isValidPosition(int agent, long base_vertex) const;
 
         std::vector<Agent> agents_;
@@ -163,6 +163,21 @@ namespace raplab
         CostVec final_cost_;
 
         int node_counter_;
+
+        // a unique map for every agent
+        std::vector<std::vector<double>> createPersonalizedMap(int agent) const;
+        bool wouldCollideWithObstacle(int agent, long base_vertex) const;
+        void markCollisionAreas(int agent, std::vector<std::vector<double>> &personalized_map) const;
+
+        std::unordered_map<int, std::vector<std::vector<double>>> personalized_maps_;
+        raplab::StateSpaceST currentGrid;
+
+        bool checkMovingCollision(int agent1, long base1_from, long base1_to,
+                                  int agent2, long base2_from, long base2_to,
+                                  size_t time) const;
+
+        bool checkPathOverlap(int agent1, long base1_from, long base1_to,
+                              int agent2, long base2_from, long base2_to) const;
     };
 
 } // namespace raplab
